@@ -22,7 +22,6 @@ const App: React.FC = () => {
   useEffect(() => {
     fetchRooms();
     
-    // Canal global para monitorar aprovações de acesso e mudanças nas salas
     const globalSub = supabase.channel('app-global-events')
       .on('postgres_changes', { 
         event: 'INSERT', 
@@ -30,7 +29,6 @@ const App: React.FC = () => {
         table: 'mensagens'
       }, (payload: any) => {
         const newMessage = payload.new;
-        // Filtramos no cliente para garantir que pegamos mensagens de sistema (sala 000...)
         if (newMessage.msg_sala_id === '00000000-0000-0000-0000-000000000000') {
           const text = newMessage.msg_texto;
           if (text.startsWith('ACESSO_APROVADO:') && currentUser && !currentUser.usr_is_admin) {
@@ -69,15 +67,12 @@ const App: React.FC = () => {
       sal_created_by: currentUser?.usr_username || 'Sistema'
     }]);
 
-    if (error) {
-      console.error("Erro ao criar sala:", error);
-      alert("Não foi possível criar a sala. Talvez o nome já exista.");
-    }
+    if (error) alert("Erro ao criar sala. Verifique se o nome já existe.");
   };
 
   const handleJoinRequest = async (name: string) => {
     const { data: userDb } = await supabase.from('usuarios').select('*').eq('usr_username', name).single();
-    if (userDb?.usr_is_banned) return alert("Este nome está banido do sistema.");
+    if (userDb?.usr_is_banned) return alert("Este nome está banido.");
 
     const newUser: User = { 
       usr_id: Math.random().toString(36).substr(2, 9), 
@@ -145,7 +140,7 @@ const App: React.FC = () => {
         .eq('slb_sala_id', room.sal_id)
         .eq('slb_nome', currentUser.usr_username)
         .single();
-      if (block) return alert(`Você foi banido desta sala. Motivo: ${block.slb_motivo || 'Não informado'}`);
+      if (block) return alert(`Você foi banido desta sala.`);
     }
     setActiveRoom(room);
     setView('chat');
@@ -153,12 +148,6 @@ const App: React.FC = () => {
 
   const addMessage = async (text: string) => {
     if (!currentUser || !activeRoom) return;
-    const { data: roomData } = await supabase.from('salas').select('sal_is_locked').eq('sal_id', activeRoom.sal_id).single();
-    if (roomData?.sal_is_locked && !currentUser.usr_is_admin) {
-      alert("A sala foi trancada por um administrador.");
-      return;
-    }
-    
     await supabase.from('mensagens').insert([{
       msg_sala_id: activeRoom.sal_id,
       msg_sender_nome: currentUser.usr_username,
@@ -175,30 +164,30 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-all duration-300">
-      <div className="w-full max-w-5xl h-[90vh] glass-effect rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-white/50">
+    <div className="min-h-screen bg-slate-900 md:bg-slate-100 flex items-center justify-center md:p-4">
+      <div className="w-full h-screen md:h-[90vh] md:max-w-5xl bg-white md:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         
-        <header className="px-6 py-4 flex items-center justify-between border-b border-slate-200 bg-white/60">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-              <i className="fas fa-shield-halved text-xl"></i>
+        {/* Header Responsivo */}
+        <header className="px-4 py-3 md:px-6 md:py-4 flex items-center justify-between border-b border-slate-200 bg-white z-30">
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-600 rounded-lg md:rounded-xl flex items-center justify-center text-white shadow-lg">
+              <i className="fas fa-comment-dots text-sm md:text-xl"></i>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-none">SecureChat Pro</h1>
-              <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Painel de Controle</span>
+            <div className="flex flex-col">
+              <h1 className="text-sm md:text-xl font-bold text-slate-800 leading-none">SecureChat</h1>
+              <span className="text-[8px] md:text-[10px] text-indigo-500 font-bold uppercase tracking-widest">v2.0 Beta</span>
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             {currentUser && (
                <div className="flex items-center gap-2 md:gap-4">
-                  {currentUser.usr_is_admin && (
+                  {currentUser.usr_is_admin && view !== 'admin-dashboard' && (
                     <button 
-                      onClick={() => setView(view === 'admin-dashboard' ? 'lobby' : 'admin-dashboard')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${view === 'admin-dashboard' ? 'bg-slate-800 text-white' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}`}
+                      onClick={() => setView('admin-dashboard')}
+                      className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-all"
                     >
-                      <i className={`fas ${view === 'admin-dashboard' ? 'fa-comments' : 'fa-cog'}`}></i>
-                      {view === 'admin-dashboard' ? 'Ver Chat' : 'Painel Admin'}
+                      <i className="fas fa-cog"></i>
                     </button>
                   )}
                   <div className="text-right hidden sm:block">
@@ -206,14 +195,14 @@ const App: React.FC = () => {
                     <p className="text-[9px] uppercase text-slate-400">{currentUser.role}</p>
                   </div>
                   <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                    <i className="fas fa-sign-out-alt text-lg"></i>
+                    <i className="fas fa-sign-out-alt"></i>
                   </button>
                </div>
             )}
           </div>
         </header>
 
-        <main className="flex-1 overflow-hidden flex relative">
+        <main className="flex-1 overflow-hidden relative flex bg-slate-50">
           {view === 'landing' && <Landing onJoin={handleJoinRequest} onLogin={handleReservedLogin} onAdminClick={() => setView('admin-login')} />}
           {view === 'admin-login' && <AdminLogin onLogin={handleAdminLogin} />}
           {view === 'waiting' && <WaitingRoom user={currentUser} pendingList={[]} setView={setView} />}
