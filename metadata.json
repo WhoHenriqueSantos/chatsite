@@ -1,0 +1,7 @@
+{
+  "name": "SecureChat Hub",
+  "description": "A collaborative chat application with host-moderated access, name reservations, and text-based history persistence.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
